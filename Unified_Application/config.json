@@ -1,0 +1,10 @@
+{
+  "analytics": "..",
+  "crm": "../crm/Web app",
+  "ports": {
+    "portal": 8780,
+    "analytics": 8781,
+    "crm": 8782,
+    "api": 8783
+  }
+}

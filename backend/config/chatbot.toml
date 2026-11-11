@@ -1,0 +1,91 @@
+# =============================================================================
+# Limits of the platform's two assistants
+# =============================================================================
+# Read by app/core/chatbot_config.py the first time an assistant answers.
+# After editing this file, restart the backend.
+#
+# WHAT THIS FILE CANNOT CHANGE (enforced in the code):
+#   * A customer only ever gets answers about HIS OWN account. Every account
+#     query in the customer assistant is filtered by the signed-in customer's
+#     ID; no setting here can widen that to another customer.
+#   * The ask-the-data box on the loss dashboard is for administrators only;
+#     the server checks the role on every request.
+#   * Every figure in an answer comes from the database. A language model, when
+#     one is switched on, only words the answer; it never computes a number.
+#
+# Mistakes cannot make the assistants share more. Each one is written to the
+# backend log, and:
+#   * if this file is missing or cannot be read (a syntax error, for instance),
+#     both assistants withhold every shared fact and use no language model
+#     until it is fixed;
+#   * a value of the wrong type counts as false: the fact is withheld, the model
+#     stays off;
+#   * an unknown setting or topic is ignored.
+# =============================================================================
+
+[customer_assistant]
+# Topics the assistant answers. A question in a topic that is not listed gets
+# the out-of-scope reply further down. Remove a topic to switch it off.
+#   billing      bills and why they moved, how a bill was calculated,
+#                the rate per kWh, discounts, the next bill
+#   payments     what is owed, how to pay, the last payment
+#   consumption  usage and its history, comparison with the zone average,
+#                saving, peak hours, cooling, solar
+#   account      account, meter and contract details, contract changes,
+#                passwords
+#   service      the zone's supply hours, power cuts
+# Greetings, "what can you do?" and questions it does not understand are
+# always answered, with a list of what it can help with.
+topics = ["billing", "payments", "consumption", "account", "service"]
+
+# Word the answers with a language model (OpenAI; needs OPENAI_API_KEY in
+# backend/.env). false = always use the built-in rule engine, which needs no
+# key and no internet connection.
+use_language_model = true
+
+[customer_assistant.share]
+# Facts that are NOT the customer's own records. false keeps the fact out of
+# every reply and out of everything sent to a language model; a question that
+# is only about that fact gets the "not shared" reply below.
+published_tariff = true   # the month's published rate per kWh, both bands
+diesel_price     = true   # the diesel price per 20 litres in the tariff table
+zone_average     = true   # average billed kWh in the customer's zone, no names
+supply_hours     = true   # measured average daily supply hours of the zone
+generator        = true   # which generator feeds the customer's zone
+network_peak     = true   # the network's busiest hour, from generator telemetry
+
+# The zone average is only quoted when at least this many subscribers were
+# billed in the zone that month, so it never describes a single household.
+# Never below 3: with two subscribers, the average would give away the other
+# one's consumption.
+zone_average_min_subscribers = 5
+
+[customer_assistant.replies]
+# A question in a topic that is switched off.
+out_of_scope_en = "I can only help with your own electricity account: your bills, payments, consumption and contract. For anything else, please contact the provider's office."
+out_of_scope_ar = "أستطيع مساعدتك في حسابك أنت فقط: فواتيرك ودفعاتك واستهلاكك واشتراكك. لأي أمر آخر، يُرجى مراجعة مكتب المزوّد."
+
+# A question about a fact that the [customer_assistant.share] section keeps
+# private.
+not_shared_en = "That information is not shared through the assistant. The provider's office can tell you."
+not_shared_ar = "هذه المعلومة لا تُعطى عبر المساعد. يستطيع مكتب المزوّد إفادتك بها."
+
+# How to get a new password. There is no e-mail delivery yet, so somebody who
+# cannot sign in is sent to the office.
+password_help_en = "If you are signed in and want a new password, open the Profile page and use Change password; it asks for your current one first. If you cannot sign in at all, the provider's office can set a new one for you, because reset by e-mail is not available yet. I cannot set a password for you, and nobody at the provider can read your existing one."
+password_help_ar = "إن كنت داخلاً إلى حسابك وتريد كلمة مرور جديدة، افتح صفحة الملف الشخصي واستخدم قسم «تغيير كلمة المرور»؛ ستطلب منك كلمة المرور الحالية أولاً. وإن كنت لا تستطيع الدخول أصلاً، فمكتب المزوّد يستطيع تعيين كلمة مرور جديدة لك، لأن إعادة التعيين عبر البريد الإلكتروني غير متاحة بعد. أنا لا أستطيع تعيين كلمة مرور لك، ولا أحد لدى المزوّد يستطيع قراءة كلمة مرورك الحالية."
+
+[ask_the_data]
+# The question box on the loss dashboard (administrators only).
+
+# Folder of the definition documents it searches, Markdown files (*.md),
+# relative to the backend folder. Database rows are never indexed: numbers
+# always come from the eleven written queries.
+documents_dir = "data/rag_documents"
+
+# A document passage scoring below this (0 to 1) is not used in an answer.
+min_relevance = 0.08
+
+# Use a language model (OPENAI_API_KEY) to route the question and reword
+# the answer. false = rule-based routing only.
+use_language_model = true
