@@ -1,0 +1,28 @@
+# Line endings, settled once.
+#
+# Windows editors write CRLF and Linux tools write LF. Without this file git
+# sees a file saved on the other platform as entirely rewritten, so a one-word
+# change shows up as "26 lines changed" and real edits get lost in the noise.
+#
+# Everything is stored in the repository as LF and checked out in whatever the
+# working platform expects.
+* text=auto eol=lf
+
+# Windows batch files must keep CRLF, or cmd.exe misreads them.
+*.bat  text eol=crlf
+*.cmd  text eol=crlf
+
+# Shell scripts must keep LF, or bash fails with "bad interpreter".
+*.sh   text eol=lf
+
+# Binary, never touched.
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.gif  binary
+*.ico  binary
+*.pdf  binary
+*.docx binary
+*.xlsx binary
+*.db   binary
+*.sqlite3 binary
