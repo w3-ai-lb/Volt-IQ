@@ -1,0 +1,47 @@
+# VoltIQ on one server (the "stand-alone product" install).
+#
+#   1. Copy deploy/.env.example to deploy/.env and set real values.
+#   2. docker compose --env-file deploy/.env up -d --build
+#   3. Open http://<server-address>/
+#
+# Three containers: PostgreSQL (data), the API, and the web app (nginx), which
+# also forwards /api to the API so the browser only needs one address.
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: voltiq
+      POSTGRES_USER: voltiq
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in deploy/.env}
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U voltiq -d voltiq"]
+      interval: 5s
+      retries: 10
+
+  api:
+    build:
+      context: .
+      dockerfile: deploy/backend.Dockerfile
+    restart: unless-stopped
+    env_file: deploy/.env
+    environment:
+      DATABASE_URL: postgresql+psycopg2://voltiq:${POSTGRES_PASSWORD}@db:5432/voltiq
+    depends_on:
+      db:
+        condition: service_healthy
+
+  web:
+    build:
+      context: .
+      dockerfile: deploy/web.Dockerfile
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      - api
+
+volumes:
+  db-data:

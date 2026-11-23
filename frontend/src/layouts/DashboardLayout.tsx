@@ -4,7 +4,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import {
   LayoutDashboard, Zap, FileText, CreditCard, Lightbulb, Bell, MessageSquare,
   User, Settings, LogOut, Menu, X, Moon, Sun, ChevronDown, Banknote, BarChart3, TrendingDown,
-  ClipboardList,
+  ClipboardList, Users,
   Zap as LogoMark,
 } from 'lucide-react';
 import { useTheme } from '@/context/ThemeContext';
@@ -41,6 +41,8 @@ const adminNav: NavItem[] = [
   { label: 'Dashboard', to: '/admin/dashboard', icon: LayoutDashboard },
   { label: 'Energy Loss', to: '/admin/loss', icon: TrendingDown },
   { label: 'Accounts to visit', to: '/admin/visits', icon: ClipboardList },
+  // The CRM module (customers, staff, billing, payments), see src/modules/crm.
+  { label: 'Utility CRM', to: '/crm', icon: Users },
   { label: 'Customers', to: '/admin/customers', icon: User },
   { label: 'Analytics', to: '/admin/analytics', icon: BarChart3 },
   { label: 'Revenue', to: '/admin/revenue', icon: Banknote },

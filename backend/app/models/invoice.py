@@ -88,6 +88,14 @@ class Invoice(Base):
     total_amount: Mapped[float] = mapped_column(Float, default=0.0)
     currency: Mapped[str] = mapped_column(String(10), default="LBP")
 
+    # Added by the unified CRM (VoltIQ): the two dial values the bill was
+    # computed from, and who captured them. Empty on invoices imported from
+    # the provider's historical export, which does not carry them.
+    previous_reading: Mapped[float | None] = mapped_column(Float)
+    current_reading: Mapped[float | None] = mapped_column(Float)
+    reading_id: Mapped[str | None] = mapped_column(String(20))
+    issued_by: Mapped[str | None] = mapped_column(String(20))
+
     tariff = relationship("Tariff", back_populates="invoices")
     invoice_payments = relationship(
         "InvoicePayment", back_populates="invoice", cascade="all, delete-orphan"
@@ -133,6 +141,11 @@ class InvoicePayment(Base):
     payment_method: Mapped[str | None] = mapped_column(String(30))   # cash | omt | whish
     payment_date: Mapped[date_type | None] = mapped_column(Date, index=True)
     collected_by: Mapped[str | None] = mapped_column(String(20), index=True)
+
+    # Added by the unified CRM (VoltIQ): the receipt handed to the subscriber.
+    receipt_no: Mapped[str | None] = mapped_column(String(30))
+    reference_no: Mapped[str | None] = mapped_column(String(60))
+    notes: Mapped[str | None] = mapped_column(String(255))
 
     invoice = relationship("Invoice", back_populates="invoice_payments")
 

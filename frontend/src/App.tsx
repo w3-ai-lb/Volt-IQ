@@ -7,6 +7,7 @@ import { ToastProvider } from '@/context/ToastContext';
 import { I18nProvider } from '@/context/I18nContext';
 import { CustomerRoute } from '@/routes/CustomerRoute';
 import { AdminRoute } from '@/routes/AdminRoute';
+import { StaffRoute } from '@/routes/StaffRoute';
 import { DashboardLayout } from '@/layouts/DashboardLayout';
 import { AdminLayout } from '@/layouts/AdminLayout';
 
@@ -34,6 +35,8 @@ const CustomerSegmentation = lazy(() => import('@/pages/admin/CustomerSegmentati
 const AnomalyDetection = lazy(() => import('@/pages/admin/AnomalyDetection'));
 const ReportsPage = lazy(() => import('@/pages/admin/ReportsPage'));
 const NotFoundPage = lazy(() => import('@/pages/NotFoundPage'));
+// The CRM module (formerly a separate app on Supabase), see src/modules/crm.
+const CrmApp = lazy(() => import('@/modules/crm/CrmApp'));
 
 function PageWrapper({ children }: { children: React.ReactNode }) {
   return (
@@ -86,6 +89,9 @@ function AnimatedRoutes() {
           <Route path="settings" element={<Suspense><PageWrapper><SettingsPage /></PageWrapper></Suspense>} />
         </Route>
 
+        {/* CRM: customers, staff, billing and payments, for admins and staff. */}
+        <Route path="/crm/*" element={<StaffRoute><Suspense><CrmApp /></Suspense></StaffRoute>} />
+
         <Route path="*" element={<Suspense><PageWrapper><NotFoundPage /></PageWrapper></Suspense>} />
       </Routes>
     </AnimatePresence>
@@ -112,7 +118,8 @@ function AnimatedRoutes() {
 export default function App() {
   return (
     <ThemeProvider>
-      <BrowserRouter>
+      {/* basename lets the same build run at the site root or under a sub-path (GitHub Pages). */}
+      <BrowserRouter basename={import.meta.env.BASE_URL.replace(/\/$/, '')}>
         <ToastProvider>
           <I18nProvider>
             <AuthProvider>

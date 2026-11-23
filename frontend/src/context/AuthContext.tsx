@@ -5,7 +5,9 @@ import { useI18n } from '@/context/I18nContext';
 import { isLanguageCode } from '@/i18n/t';
 import { errorMessage } from '@/utils/errors';
 
-export type UserRole = 'customer' | 'admin';
+// 'staff' (office) and 'field' (meter readers) are the CRM roles added when the
+// CRM joined the platform; they open /crm, never the customer or admin pages.
+export type UserRole = 'customer' | 'admin' | 'staff' | 'field';
 
 export interface User {
   id: string;
@@ -26,6 +28,13 @@ interface AuthContextValue {
   register: (customerId: string, registrationCode: string, name: string, email: string, password: string) => Promise<User>;
   logout: () => void;
   updateProfile: (patch: Partial<User>) => void;
+}
+
+/** Where each role lands after signing in. */
+export function homeFor(role?: string): string {
+  if (role === 'admin') return '/admin/dashboard';
+  if (role === 'staff' || role === 'field') return '/crm';
+  return '/app/dashboard';
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);

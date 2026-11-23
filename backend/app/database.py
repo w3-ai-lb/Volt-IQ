@@ -84,6 +84,18 @@ _LATER_COLUMNS: dict[str, dict[str, str]] = {
         "site_name": "VARCHAR(80)",
         "controller_model": "VARCHAR(60)",
     },
+    # Columns the unified CRM added to the ishtirak money tables.
+    "invoices": {
+        "previous_reading": "FLOAT",
+        "current_reading": "FLOAT",
+        "reading_id": "VARCHAR(20)",
+        "issued_by": "VARCHAR(20)",
+    },
+    "invoice_payments": {
+        "receipt_no": "VARCHAR(30)",
+        "reference_no": "VARCHAR(60)",
+        "notes": "VARCHAR(255)",
+    },
     "generator_telemetry": {
         "fuel_delivery_pressure_bar": "FLOAT",
         "intake_manifold_temp_c": "FLOAT",

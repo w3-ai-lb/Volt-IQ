@@ -630,6 +630,13 @@ def seed(db: Session) -> None:
     generated = alert_engine.refresh_all(db)
     logger.info("Alerts generated: %d", generated)
 
+    # --- CRM (VoltIQ unified) --------------------------------------------
+    # Subscribers, meters, readings, invoices and staff for the same people,
+    # so the CRM and the field app have something to show.
+    from app.pipeline.crm_seed import seed_crm
+
+    seed_crm(db)
+
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Seed the platform with demo data.")

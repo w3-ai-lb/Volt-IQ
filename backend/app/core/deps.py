@@ -75,3 +75,25 @@ def require_admin(current_user: Customer = Depends(get_current_user)) -> Custome
             detail="Administrator privileges required",
         )
     return current_user
+
+
+def require_staff(current_user: Customer = Depends(get_current_user)) -> Customer:
+    """Guard for the CRM: administrators, office staff and field employees."""
+    from app.models.employee import STAFF_ACCOUNT_ROLES
+
+    if current_user.role not in STAFF_ACCOUNT_ROLES:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Staff privileges required",
+        )
+    return current_user
+
+
+def require_office(current_user: Customer = Depends(require_staff)) -> Customer:
+    """Guard for CRM changes that field employees may not make (staff, customers)."""
+    if current_user.role not in ("admin", "staff"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Office staff privileges required",
+        )
+    return current_user

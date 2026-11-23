@@ -4,7 +4,7 @@ import { Mail, ArrowRight } from 'lucide-react';
 import { AuthLayout } from '@/layouts/AuthLayout';
 import { Button } from '@/components/ui/Button';
 import { Input, PasswordInput } from '@/components/ui/Input';
-import { useAuth } from '@/context/AuthContext';
+import { homeFor, useAuth } from '@/context/AuthContext';
 import { useToast } from '@/context/ToastContext';
 import { t } from '@/i18n/t';
 
@@ -35,7 +35,7 @@ export default function LoginPage() {
     try {
       const user = await login(email, password, remember);
       toast({ type: 'success', title: t('Welcome back!'), message: t('Signed in as {name}').replace('{name}', user.name) });
-      navigate(user.role === 'admin' ? '/admin/dashboard' : '/app/dashboard');
+      navigate(homeFor(user.role));
     } catch (error) {
       // Show what actually went wrong. Only suggest the demo accounts when the
       // credentials themselves were rejected, offering them when the server is
@@ -64,7 +64,7 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (isAuthenticated) {
-      navigate(user?.role === 'admin' ? '/admin/dashboard' : '/app/dashboard', { replace: true });
+      navigate(homeFor(user?.role), { replace: true });
     }
   }, [isAuthenticated, user, navigate]);
 

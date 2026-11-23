@@ -22,7 +22,7 @@ class Settings(BaseSettings):
     )
 
     # --- Project ---
-    PROJECT_NAME: str = "AI-Powered Energy Analytics and Customer Engagement Platform"
+    PROJECT_NAME: str = "VoltIQ: Energy Analytics, CRM and Field Operations Platform"
     API_VERSION: str = "1.0.0"
 
     # --- Database -------------------------------------------------------
@@ -91,6 +91,10 @@ class Settings(BaseSettings):
     TARIFF_LBP_PER_KWH: float = 30_981.0
     CURRENCY: str = "LBP"
 
+    # Fixed subscription charge added to every invoice the CRM issues from a
+    # meter reading (VoltIQ unified CRM). 0 means energy-only billing.
+    FIXED_CHARGE_PER_INVOICE: float = 0.0
+
     # --- Demo behaviour -------------------------------------------------
     # When true, an account created through /auth/register or by an admin is
     # given a generated 12-month meter history.
@@ -106,6 +110,12 @@ class Settings(BaseSettings):
     #
     # Set to true only when you need a self-populating account for a demo.
     PROVISION_DEMO_DATA: bool = False
+
+    # When true, a server that starts on an EMPTY database fills it with the
+    # demo data (python -m app.pipeline.seed). Meant for a free demo deploy
+    # (Render, Codespaces) where nobody can run the seeder by hand. The demo
+    # passwords are public, so never turn this on for real customer data.
+    SEED_DEMO_DATA_ON_EMPTY_DB: bool = False
 
     @property
     def cors_origins_list(self) -> list[str]:

@@ -27,6 +27,7 @@ from app.routers import (
     billing,
     chat,
     consumption,
+    crm,
     dashboard,
     ishtirak,
     preferences,
@@ -78,6 +79,7 @@ app.include_router(search.router)
 app.include_router(preferences.router)
 app.include_router(ishtirak.router)
 app.include_router(ask.router)
+app.include_router(crm.router)
 
 
 # --- Lifecycle --------------------------------------------------------------
@@ -105,11 +107,27 @@ def check_jwt_secret() -> None:
     raise RuntimeError(message)
 
 
+def seed_demo_if_empty() -> None:
+    """Fill an empty database with demo data, only when SEED_DEMO_DATA_ON_EMPTY_DB is true."""
+    if not settings.SEED_DEMO_DATA_ON_EMPTY_DB:
+        return
+    from app.database import SessionLocal
+    from app.models.customer import Customer
+    from app.pipeline.seed import seed
+
+    with SessionLocal() as db:
+        if db.query(Customer).first() is not None:
+            return
+        logger.warning("Empty database and SEED_DEMO_DATA_ON_EMPTY_DB=true: loading the demo data")
+        seed(db)
+
+
 @app.on_event("startup")
 def on_startup() -> None:
     """Create any missing tables so a fresh clone runs without a manual step."""
     check_jwt_secret()
     create_all_tables()
+    seed_demo_if_empty()
     engine_name = "PostgreSQL" if not settings.is_sqlite else "SQLite (development)"
     logger.info("Database ready, %s", engine_name)
     if settings.RETURN_RESET_TOKEN_IN_RESPONSE and not settings.is_sqlite:
