@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Energy Workspace</title>
+<style>
+:root{font-family:Inter,Segoe UI,sans-serif;color:#eaf2ff;background:#0b1220;color-scheme:dark}*{box-sizing:border-box}body{margin:0}header{height:76px;display:flex;align-items:center;justify-content:space-between;padding:0 30px;border-bottom:1px solid #27344b;background:#101a2c;gap:18px}header strong{font-size:20px}nav{display:flex;gap:8px}button,a{font:inherit}button{border:1px solid #34445f;border-radius:9px;padding:10px 15px;background:transparent;color:#cad6e8;cursor:pointer}button:hover,button.active{background:#214363;color:white;border-color:#55c6c0}button:focus-visible,a:focus-visible{outline:3px solid #64ddd1;outline-offset:3px}main{max-width:1120px;margin:70px auto;padding:0 28px}.eyebrow{color:#64ddd1;text-transform:uppercase;letter-spacing:.18em;font-size:12px}h1{font-size:clamp(32px,5vw,56px);margin:18px 0}p{color:#aabbd2;line-height:1.7}.cards{display:grid;grid-template-columns:1fr 1fr;gap:22px;margin-top:38px}.card{padding:30px;background:linear-gradient(135deg,#17273e,#111d30);border:1px solid #30415e;border-radius:18px}.card h2{font-size:25px}.card p{min-height:80px}.tag{font-size:12px;color:#74dfcc}.card button{background:#67d8c8;color:#08241f;border:0;font-weight:700}.open{color:#b4c8e4;margin-left:14px;font-size:14px}.note{margin-top:28px;padding:18px;border-left:3px solid #dbb36f;background:#1c2330;font-size:14px}#stage{height:calc(100dvh - 76px)}iframe{width:100%;height:100%;border:0;background:white}footer{margin-top:35px;color:#8399b5;font-size:13px}#health{font-size:12px;color:#91b9ad}@media(max-width:700px){header{height:auto;min-height:100px;padding:14px;flex-wrap:wrap}nav{width:100%;overflow:auto}button{padding:9px 11px}.cards{grid-template-columns:1fr}main{margin:35px auto}#stage{height:calc(100dvh - 120px)}.card p{min-height:0}}
+</style>
+</head>
+<body>
+<header><div><strong>⚡ Energy Workspace</strong><div id="health" role="status">Checking local services…</div></div><nav aria-label="Application switcher"><button data-app="home" class="active">Overview</button><button data-app="analytics">Energy Analytics</button><button data-app="crm">Utility CRM</button></nav></header>
+<main id="home"><div class="eyebrow">NXTTRN × MUBS · Unified workspace</div><h1>One workspace.<br>Two complete applications.</h1><p>Explore energy performance and manage utility operations from one place.<br><span lang="ar" dir="rtl">منصة واحدة للوصول إلى تحليلات الطاقة وإدارة المشتركين.</span></p>
+<div class="cards"><article class="card"><span class="tag">ENERGY INTELLIGENCE</span><h2>Energy Analytics</h2><p>Customer consumption, bills and payments. Administrator forecasts, energy losses, anomalies, and field-visit priorities.</p><button data-app="analytics">Open Analytics →</button><a id="analytics-link" class="open" target="_blank" rel="noopener">Open in tab ↗</a></article><article class="card"><span class="tag">UTILITY OPERATIONS</span><h2>Smart Utility CRM</h2><p>Manage subscribers and employees, assignments, billing, payment receipts, and reports using the original CRM application.</p><button data-app="crm">Open CRM →</button><a id="crm-link" class="open" target="_blank" rel="noopener">Open in tab ↗</a></article></div>
+<p class="note"><strong id="crm-status">CRM cloud connection has not been verified.</strong><br>Each application retains its own sign-in and data. CRM uses its configured Supabase service; its demo interface can appear even when cloud synchronization is unavailable. Analytics uses an isolated local database.</p><footer>Local access only · Switch applications using the navigation above · Stop all services with STOP_APP.bat</footer></main>
+<section id="stage" hidden aria-label="Selected application"></section>
+<script>
+let apps = {};
+const frames = {};
+function select(name) {
+ if (name !== 'home' && !apps[name]) return;
+ document.querySelectorAll('nav button').forEach(b => b.classList.toggle('active', b.dataset.app === name));
+ document.getElementById('home').hidden = name !== 'home';
+ document.getElementById('stage').hidden = name === 'home';
+ if (name !== 'home' && !frames[name]) {
+  const frame = document.createElement('iframe');
+  frame.title = name === 'crm' ? 'Smart Utility CRM' : 'Energy Analytics';
+  frame.src = apps[name];
+  document.getElementById('stage').append(frame);
+  frames[name] = frame;
+ }
+ Object.entries(frames).forEach(([key, frame]) => frame.hidden = key !== name);
+ if (location.hash !== '#' + name) location.hash = name;
+}
+document.querySelectorAll('[data-app]').forEach(button => button.addEventListener('click', () => select(button.dataset.app)));
+window.addEventListener('hashchange', () => select(location.hash.slice(1) || 'home'));
+async function refresh() {
+ try {
+  const response = await fetch('/status');
+  const status = await response.json();
+  apps = status.apps;
+  for (const name of Object.keys(apps)) document.getElementById(name + '-link').href = apps[name];
+  document.getElementById('health').textContent = status.apiReady ? 'Local services connected' : 'Analytics API unavailable';
+  document.getElementById('crm-status').textContent = status.crmLastCheck === 'unavailable' ? 'Last CRM cloud check failed — remote records are unavailable.' : status.crmLastCheck === 'reachable' ? 'Last CRM cloud check succeeded.' : 'CRM cloud connection has not been verified.';
+ } catch { document.getElementById('health').textContent = 'Launcher disconnected'; }
+}
+refresh().then(() => select(location.hash.slice(1) || 'home'));
+setInterval(refresh, 15000);
+</script></body></html>

@@ -1,0 +1,44 @@
+# ---------------------------------------------------------------
+# AI-Powered Energy Analytics Platform: Backend Dependencies
+# Stack as specified in the Software Architecture document:
+# FastAPI · PostgreSQL · JWT · Python AI models
+# ---------------------------------------------------------------
+
+# --- Web framework / API layer ---
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+
+# --- Data layer ---
+# The schema is created by SQLAlchemy (create_all) plus the additive column
+# list in app/database.py; no migration tool is used.
+SQLAlchemy==2.0.36
+psycopg2-binary==2.9.10          # PostgreSQL driver
+
+# --- Validation / settings ---
+pydantic==2.10.4
+pydantic-settings==2.7.0
+email-validator==2.2.0
+
+# --- Security (JWT + password hashing) ---
+python-jose[cryptography]==3.3.0
+bcrypt==4.2.1
+
+# --- AI / Machine Learning module ---
+pandas==2.2.3
+numpy==2.2.1
+scikit-learn==1.6.0              # KMeans (segmentation), IsolationForest (anomaly)
+statsmodels==0.14.4              # SARIMA (demand forecasting)
+
+# --- Language model (optional) ----------------------------------------------
+# The question interface answers from its own patterns and SQL with no key at
+# all. A key (OPENAI_API_KEY) adds two things and neither is arithmetic:
+# routing a question the patterns do not recognise to one of the KNOWN
+# queries, and rewriting an answer more naturally.
+openai==1.59.3
+
+# --- Report generation (Architecture Section V-ii: "Report Generation") ---
+reportlab==4.2.5                 # PDF reports
+openpyxl==3.1.5                  # Excel reports
+
+# --- Utilities ---
+python-dotenv==1.0.1             # reads backend/.env for pydantic-settings
