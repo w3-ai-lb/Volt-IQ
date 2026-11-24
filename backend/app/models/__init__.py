@@ -30,6 +30,7 @@ from app.models.chat import ChatConversation, ChatMessage
 from app.models.consumption import Consumption
 from app.models.customer import Customer
 from app.models.employee import Employee, EmployeeAssignment
+from app.models.user import User
 from app.models.explanation import SubscriberExplanation
 from app.models.forecast import Forecast
 from app.models.generator_metrics import GeneratorMonthMetrics
@@ -61,6 +62,7 @@ __all__ = [
     "Customer",
     "Employee",
     "EmployeeAssignment",
+    "User",
     "Forecast",
     "GeneratorMonthMetrics",
     "NotificationPreference",

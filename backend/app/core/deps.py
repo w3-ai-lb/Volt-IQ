@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.core.security import decode_access_token
 from app.database import get_db
+from app.core.accounts import get_account
 from app.models.customer import Customer
 
 # The React frontend already sends `Authorization: Bearer <token>`
@@ -46,7 +47,7 @@ def get_current_user(
     if not customer_id:
         raise _CREDENTIALS_ERROR
 
-    user = db.get(Customer, customer_id)
+    user = get_account(db, payload.get("kind"), customer_id)
     if user is None:
         raise _CREDENTIALS_ERROR
 
@@ -73,6 +74,16 @@ def require_admin(current_user: Customer = Depends(get_current_user)) -> Custome
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Administrator privileges required",
+        )
+    return current_user
+
+
+def require_customer(current_user: Customer = Depends(get_current_user)) -> Customer:
+    """Guard for writes that only make sense for a customer account (chat, alert settings)."""
+    if getattr(current_user, "kind", "customer") != "customer":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="This is available to customer accounts only",
         )
     return current_user
 

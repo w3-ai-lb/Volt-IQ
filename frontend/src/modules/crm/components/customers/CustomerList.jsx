@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import { crmApi, apiError } from '../../crmApi';
 import { useData } from '../../context/DataContext';
 import { useAuth, PERMISSIONS } from '../../context/AuthContext';
 import { formatCurrency, formatKwh } from '../../utils/invoiceGenerator';
@@ -15,7 +16,7 @@ import {
 } from 'lucide-react';
 
 export default function CustomerList({ onRecordPaymentForCustomer }) {
-  const { customers, deleteCustomer, employees } = useData();
+  const { deleteCustomer, employees, version } = useData();
   const { hasPermission } = useAuth();
 
   const [searchTerm, setSearchTerm] = useState('');
@@ -28,19 +29,49 @@ export default function CustomerList({ onRecordPaymentForCustomer }) {
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [viewingCustomer, setViewingCustomer] = useState(null);
 
-  // Search & Filter logic
-  const filteredCustomers = customers.filter((cust) => {
-    const matchesSearch =
-      cust.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      cust.accountNo.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      cust.meterNo.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      cust.phone.includes(searchTerm);
+  // Stage 2: the server searches, filters and pages (/crm/customers/page),
+  // so this screen stays fast with thousands of customers.
+  const PAGE_SIZE = 25;
+  const [page, setPage] = useState(0);
+  const [rows, setRows] = useState([]);
+  const [total, setTotal] = useState(0);
+  const [listLoading, setListLoading] = useState(true);
+  const [listError, setListError] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
 
-    const matchesTariff = selectedTariff === 'All' || cust.tariffType === selectedTariff;
-    const matchesEmployee = selectedEmployee === 'All' || cust.assignedEmployeeId === selectedEmployee;
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(searchTerm.trim()), 300);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
 
-    return matchesSearch && matchesTariff && matchesEmployee;
-  });
+  useEffect(() => setPage(0), [debouncedSearch, selectedTariff, selectedEmployee]);
+
+  useEffect(() => {
+    let alive = true;
+    setListLoading(true);
+    crmApi
+      .customersPage({
+        search: debouncedSearch || undefined,
+        tariffType: selectedTariff,
+        employeeId: selectedEmployee,
+        offset: page * PAGE_SIZE,
+        limit: PAGE_SIZE,
+      })
+      .then((res) => {
+        if (!alive) return;
+        setRows(res.items);
+        setTotal(res.total);
+        setListError('');
+      })
+      .catch((err) => alive && setListError(apiError(err, 'Could not load customers')))
+      .finally(() => alive && setListLoading(false));
+    return () => {
+      alive = false;
+    };
+  }, [debouncedSearch, selectedTariff, selectedEmployee, page, version]);
+
+  const filteredCustomers = rows;
+  const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   const handleDelete = (e, customerId, customerName) => {
     e.stopPropagation(); // Don't trigger row click modal
@@ -247,6 +278,34 @@ export default function CustomerList({ onRecordPaymentForCustomer }) {
               )}
             </tbody>
           </table>
+        </div>
+
+        {/* Stage 2: server-side paging */}
+        <div className="flex items-center justify-between px-4 py-3 border-t border-slate-800 text-xs text-slate-400">
+          <span>
+            {listError ? <span className="text-red-400">{listError}</span>
+              : listLoading ? 'Loading...'
+              : `${total === 0 ? 0 : page * PAGE_SIZE + 1}-${Math.min(total, (page + 1) * PAGE_SIZE)} of ${total} customers`}
+          </span>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              disabled={page === 0 || listLoading}
+              onClick={() => setPage((p) => Math.max(0, p - 1))}
+              className="px-3 py-1.5 rounded-lg bg-slate-800 border border-slate-700 disabled:opacity-40 cursor-pointer"
+            >
+              Previous
+            </button>
+            <span>Page {page + 1} of {pageCount}</span>
+            <button
+              type="button"
+              disabled={page + 1 >= pageCount || listLoading}
+              onClick={() => setPage((p) => p + 1)}
+              className="px-3 py-1.5 rounded-lg bg-slate-800 border border-slate-700 disabled:opacity-40 cursor-pointer"
+            >
+              Next
+            </button>
+          </div>
         </div>
       </div>
 

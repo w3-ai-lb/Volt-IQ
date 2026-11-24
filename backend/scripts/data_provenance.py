@@ -95,7 +95,10 @@ from app.models.password_reset import PasswordResetToken
 from app.models.payment import Payment
 from app.models.recommendation import Recommendation
 from app.models.subscription import Meter, MeterReading, Subscriber, Subscription
+from app.models.user import User
 from app.pipeline.portal import BILL_PREFIX, PAYMENT_PREFIX
+
+DEMO_ADMIN_EMAIL = "admin@nxttrn.com"
 
 SEEDED = "invented by our seeder"
 # Rows a real subscriber created by using the site. Kept apart from DERIVED
@@ -487,7 +490,10 @@ def purge(db: Session, assume_yes: bool) -> int:
             "           python -m app.pipeline.identities\n"
             "           python -m app.pipeline.portal"
         )
-    if not _real_customers(db).filter(Customer.role == "admin").count():
+    # Stage 2: administrators live in `users`; an older database may still hold
+    # one in `customers`. Either counts, as long as it is not the demo one.
+    real_admins = db.query(User).filter(User.role == "admin", User.email != DEMO_ADMIN_EMAIL).count()
+    if not real_admins and not _real_customers(db).filter(Customer.role == "admin").count():
         blocked.append(
             "There is no administrator other than the demo one.\n"
             "       admin@nxttrn.com is about to be deleted, and nothing would be\n"
@@ -524,10 +530,16 @@ def purge(db: Session, assume_yes: bool) -> int:
             entry[3](db).delete(synchronize_session=False)
         else:
             db.query(model).delete()
+    # Stage 2: the demo staff logins (admin@nxttrn.com, *@voltiq.demo) live in `users`.
+    db.query(User).filter(
+        or_(User.email == DEMO_ADMIN_EMAIL, User.email.like("%@voltiq.demo"))
+    ).delete(synchronize_session=False)
     db.commit()
 
     print(f"\nRemoved {total:,} invented records.")
-    remaining = _real_customers(db).filter(Customer.role == "admin").all()
+    remaining = db.query(User).filter(User.role == "admin").all() or (
+        _real_customers(db).filter(Customer.role == "admin").all()
+    )
     if remaining:
         print("Sign in with the administrator you created:")
         for row in remaining:

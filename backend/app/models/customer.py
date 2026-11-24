@@ -23,6 +23,9 @@ DEFAULT_LANGUAGE = "en"
 class Customer(Base):
     __tablename__ = "customers"
 
+    # Which sign-in table this account lives in (see app/models/user.py).
+    kind = "customer"
+
     # Human-readable business key, e.g. "CUST-0001"
     customer_id: Mapped[str] = mapped_column(String(20), primary_key=True)
 

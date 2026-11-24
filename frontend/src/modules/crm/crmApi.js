@@ -10,7 +10,10 @@ const data = (promise) => promise.then((r) => r.data);
 export const crmApi = {
   me: () => data(api.get('/crm/me')),
 
-  listCustomers: () => data(api.get('/crm/customers')),
+  // Stage 2: small rows for pickers, one page for the directory, totals for the dashboard.
+  customerOptions: () => data(api.get('/crm/customers/options')),
+  customersPage: (params) => data(api.get('/crm/customers/page', { params })),
+  summary: () => data(api.get('/crm/summary')),
   createCustomer: (body) => data(api.post('/crm/customers', body)),
   updateCustomer: (id, body) => data(api.patch(`/crm/customers/${encodeURIComponent(id)}`, body)),
   deleteCustomer: (id) => api.delete(`/crm/customers/${encodeURIComponent(id)}`),
@@ -22,10 +25,10 @@ export const crmApi = {
   assignCustomers: (id, customerIds) =>
     data(api.put(`/crm/employees/${encodeURIComponent(id)}/customers`, { customerIds })),
 
-  listInvoices: () => data(api.get('/crm/invoices')),
+  listInvoices: (params = { limit: 200 }) => data(api.get('/crm/invoices', { params })),
   recordReading: (body) => data(api.post('/crm/readings', body)),
 
-  listPayments: () => data(api.get('/crm/payments')),
+  listPayments: (params = { limit: 200 }) => data(api.get('/crm/payments', { params })),
   recordPayment: (body) => data(api.post('/crm/payments', body)),
 
   getTariff: () => data(api.get('/crm/tariff')),

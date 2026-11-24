@@ -17,6 +17,7 @@ from app.ai import risk
 from app.analytics import asof, owed
 from app.config import settings
 from app.core import registration_codes
+from app.core.accounts import email_in_use
 from app.core.deps import require_admin
 from app.core.i18n import localize_all, month_year, request_language
 from app.database import get_db
@@ -460,7 +461,7 @@ def create_customer(
 ):
     """Add a customer account."""
     email = str(payload.email).lower().strip()
-    if db.query(Customer).filter(func.lower(Customer.email) == email).first():
+    if email_in_use(db, email):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="A customer with this email already exists",
@@ -523,12 +524,8 @@ def update_customer(
 
     if "email" in changes and changes["email"]:
         email = str(changes["email"]).lower().strip()
-        clash = (
-            db.query(Customer)
-            .filter(func.lower(Customer.email) == email, Customer.customer_id != customer_id)
-            .first()
-        )
-        if clash:
+        # Staff (users) and customers share one pool of sign-in emails.
+        if email_in_use(db, email, exclude_id=customer_id):
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail="Another customer already uses this email",

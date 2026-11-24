@@ -9,6 +9,7 @@ Smart Utility CRM, Field mobile app) and unified into a single system that can
 grow into a stand-alone product or a SaaS.
 
 - **Architecture, components and why we chose them:** [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
+- **Optimization log (every improvement, as a named and timestamped stage):** [docs/ARCHITECTURE.md#7-optimization-log](docs/ARCHITECTURE.md#7-optimization-log). Latest: **Stage 2: Linked Billing, Staff Users & Fast Lists**
 - **Putting it online (GitHub Pages, Render, Codespaces, Docker):** [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)
 - **API details, data loading and security notes:** [backend/README.md](backend/README.md)
 - **Field app:** [mobile/README.md](mobile/README.md)
@@ -144,6 +145,8 @@ Short version (details in [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)):
 | Add an API endpoint | `backend/app/routers/<module>.py` (+ shapes in `backend/app/schemas/`) |
 | Add a database column/table | `backend/app/models/` (new columns on existing tables: also `_LATER_COLUMNS` in `backend/app/database.py`) |
 | Change who may do what | `backend/app/core/deps.py` (`require_admin`, `require_staff`, `require_office`) |
+| Change staff accounts / sign-in | `backend/app/models/user.py`, `backend/app/core/accounts.py` (staff are in `users`, customers in `customers`) |
+| Change how CRM invoices reach the customer portal | `backend/app/core/billing_link.py` |
 | Change a customer or admin page | `frontend/src/pages/` |
 | Change a CRM screen | `frontend/src/modules/crm/components/` (data: `frontend/src/modules/crm/context/DataContext.jsx`) |
 | Change how the web app calls the API | `frontend/src/services/api.ts` and `frontend/src/modules/crm/crmApi.js` |

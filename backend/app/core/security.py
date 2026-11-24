@@ -38,7 +38,11 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 
 
 def create_access_token(
-    subject: str, role: str, expires_minutes: int | None = None, session_version: int = 0
+    subject: str,
+    role: str,
+    expires_minutes: int | None = None,
+    session_version: int = 0,
+    kind: str = "customer",
 ) -> str:
     """
     Build a signed JWT.
@@ -54,6 +58,8 @@ def create_access_token(
         "sub": subject,
         "role": role,
         "sv": session_version,
+        # Which sign-in table `sub` belongs to: "user" (staff) or "customer".
+        "kind": kind,
         "exp": expire,
         "iat": datetime.now(UTC),
     }

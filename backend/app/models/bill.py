@@ -25,6 +25,10 @@ class Bill(Base):
     # 'Paid' | 'Pending' | 'Overdue'
     status: Mapped[str] = mapped_column(String(20), default="Pending", nullable=False)
 
+    # Stage 2 (linked billing): the CRM invoice this bill shows to the
+    # customer, when it was issued from a meter reading. See app/core/billing_link.py.
+    invoice_id: Mapped[str | None] = mapped_column(String(20), index=True)
+
     customer = relationship("Customer", back_populates="bills")
     payments = relationship("Payment", back_populates="bill")
 

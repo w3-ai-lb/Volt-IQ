@@ -24,7 +24,7 @@ import {
 } from 'recharts';
 
 export default function DashboardView({ onNavigate }) {
-  const { getDashboardStats, invoices, payments, customers } = useData();
+  const { getDashboardStats, invoices, summary, customers } = useData();
   const { hasPermission } = useAuth();
   const { t } = useSettings();
 
@@ -91,8 +91,8 @@ export default function DashboardView({ onNavigate }) {
             <span className="text-xs text-emerald-400 ml-2 font-semibold">Active Accounts</span>
           </div>
           <div className="mt-2 text-[11px] text-slate-500 flex justify-between">
-            <span>Residential: {customers.filter(c => c.tariffType === 'Residential').length}</span>
-            <span>Commercial: {customers.filter(c => c.tariffType === 'Commercial').length}</span>
+            <span>Residential: {summary?.residentialCustomers ?? customers.filter(c => c.tariffType === 'Residential').length}</span>
+            <span>Commercial: {summary?.commercialCustomers ?? customers.filter(c => c.tariffType === 'Commercial').length}</span>
           </div>
         </div>
 
@@ -111,7 +111,7 @@ export default function DashboardView({ onNavigate }) {
             </span>
           </div>
           <div className="mt-2 text-[11px] text-slate-500">
-            Recorded Payments: {payments.length} Receipts
+            Recorded Payments: {summary?.paymentCount ?? 0} Receipts
           </div>
         </div>
 
@@ -128,7 +128,7 @@ export default function DashboardView({ onNavigate }) {
             <span className="text-xs text-amber-400/80 ml-2 font-medium">Pending Bills</span>
           </div>
           <div className="mt-2 text-[11px] text-slate-500">
-            Unpaid Invoices: {invoices.filter(i => i.status !== 'Paid').length}
+            Unpaid Invoices: {summary?.unpaidInvoices ?? invoices.filter(i => i.status !== 'Paid').length}
           </div>
         </div>
 

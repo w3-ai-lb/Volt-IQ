@@ -31,6 +31,10 @@ class Payment(Base):
     # 'Completed' | 'Partial' | 'Failed'
     status: Mapped[str] = mapped_column(String(20), default="Completed", nullable=False)
 
+    # Stage 2 (linked billing): the matching CRM invoice payment, so one payment
+    # is never counted twice. See app/core/billing_link.py.
+    invoice_payment_id: Mapped[str | None] = mapped_column(String(20), index=True)
+
     customer = relationship("Customer", back_populates="payments")
     bill = relationship("Bill", back_populates="payments")
 

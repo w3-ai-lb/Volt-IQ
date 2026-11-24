@@ -4,6 +4,12 @@ import { formatCurrency, setCurrency } from '../utils/invoiceGenerator';
 
 // CRM data, loaded from the VoltIQ backend.
 //
+// Stage 2 (fast lists): the context no longer downloads every full customer
+// row. It keeps a SMALL row per customer for pickers (/crm/customers/options),
+// the dashboard totals (/crm/summary) and the most recent 200 invoices and
+// payments. The customer directory pages and searches on the server by itself
+// (CustomerList.jsx). The 30-second refresh only reloads the cheap parts.
+//
 // Before unification this context read and wrote a separate Supabase project
 // and kept copies in localStorage. Now the backend is the only source of
 // truth: every change is sent to the API first and the lists are refreshed
@@ -16,6 +22,7 @@ const DEFAULT_AVATAR =
   'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=120';
 
 const REFRESH_MS = 30000;
+const RECENT = { limit: 200 };
 
 const withAvatar = (emp) => ({ avatar: DEFAULT_AVATAR, ...emp });
 
@@ -25,6 +32,10 @@ export function DataProvider({ children }) {
   const [invoices, setInvoices] = useState([]);
   const [payments, setPayments] = useState([]);
   const [tariff, setTariffState] = useState(null);
+  const [summary, setSummary] = useState(null);
+  // Bumped after every change, so screens that load their own data (the
+  // paged customer directory) know to reload.
+  const [version, setVersion] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [notifications, setNotifications] = useState([]);
@@ -38,35 +49,44 @@ export function DataProvider({ children }) {
 
   const markNotificationsAsRead = () => setHasUnreadNotifications(false);
 
+  // The cheap, frequently changing parts: totals and the latest activity.
+  const refreshActivity = useCallback(async () => {
+    const [s, i, p] = await Promise.all([crmApi.summary(), crmApi.listInvoices(RECENT), crmApi.listPayments(RECENT)]);
+    setSummary(s);
+    setInvoices(i);
+    setPayments(p);
+  }, []);
+
+  // Everything, after a change or on first load.
   const refresh = useCallback(async () => {
     try {
-      const [c, e, i, p, t] = await Promise.all([
-        crmApi.listCustomers(),
+      const [options, e, t] = await Promise.all([
+        crmApi.customerOptions(),
         crmApi.listEmployees(),
-        crmApi.listInvoices(),
-        crmApi.listPayments(),
         crmApi.getTariff(),
+        refreshActivity(),
       ]);
       setCurrency(t.currency);
-      setCustomers(c);
-      setEmployees(e.map(withAvatar));
-      setInvoices(i);
-      setPayments(p);
+      const staff = e.map(withAvatar);
+      const nameOf = Object.fromEntries(staff.map((x) => [x.id, x.name]));
+      setCustomers(options.map((c) => ({ ...c, assignedEmployeeName: nameOf[c.assignedEmployeeId] || 'Unassigned' })));
+      setEmployees(staff);
       setTariffState(t);
+      setVersion((v) => v + 1);
       setError('');
     } catch (err) {
       setError(apiError(err, 'Could not load CRM data'));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [refreshActivity]);
 
   useEffect(() => {
     refresh();
     // Picks up readings captured on the field app while this page is open.
-    const timer = setInterval(refresh, REFRESH_MS);
+    const timer = setInterval(() => refreshActivity().catch(() => {}), REFRESH_MS);
     return () => clearInterval(timer);
-  }, [refresh]);
+  }, [refresh, refreshActivity]);
 
   // Runs an API change, refreshes the lists, and reports the outcome.
   const mutate = async (fn, success) => {
@@ -81,19 +101,14 @@ export function DataProvider({ children }) {
     }
   };
 
-  const getDashboardStats = () => {
-    const totalRevenue = payments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
-    const outstandingPayments = invoices
-      .filter((inv) => inv.status !== 'Paid')
-      .reduce((sum, inv) => sum + ((Number(inv.totalAmount) || 0) - (Number(inv.paidAmount) || 0)), 0);
-    const totalKwhConsumed = invoices.reduce((sum, inv) => sum + (Number(inv.kwhConsumed) || 0), 0);
-    return {
-      totalCustomers: customers.length,
-      totalRevenue: Math.round(totalRevenue * 100) / 100,
-      outstandingPayments: Math.round(outstandingPayments * 100) / 100,
-      totalKwhConsumed: Math.round(totalKwhConsumed * 10) / 10,
-    };
-  };
+  // Totals come from the server (/crm/summary), so they cover every record,
+  // not just the rows loaded in the browser.
+  const getDashboardStats = () => ({
+    totalCustomers: summary?.totalCustomers ?? customers.length,
+    totalRevenue: summary?.totalCollected ?? 0,
+    outstandingPayments: summary?.outstanding ?? 0,
+    totalKwhConsumed: summary?.kwhBilled ?? 0,
+  });
 
   // Sets the tariff for invoices issued from now on. Debounced, because the
   // settings field calls it on every keystroke. Invoices already issued keep
@@ -219,6 +234,8 @@ export function DataProvider({ children }) {
         invoices,
         payments,
         tariff,
+        summary,
+        version,
         loading,
         error,
         refresh,

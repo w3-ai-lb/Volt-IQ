@@ -1,5 +1,5 @@
-import React from 'react';
-import { useData } from '../../context/DataContext';
+import React, { useEffect, useState } from 'react';
+import { crmApi } from '../../crmApi';
 import { formatCurrency, formatKwh, getCurrency } from '../../utils/invoiceGenerator';
 import {
   X,
@@ -11,11 +11,23 @@ import {
 } from 'lucide-react';
 
 export default function CustomerDetailModal({ customer, isOpen, onClose, onRecordPayment }) {
-  const { invoices } = useData();
+  // Stage 2: this customer's invoices are loaded from the server when the
+  // profile opens, instead of being searched in a list of every invoice.
+  const [customerInvoices, setCustomerInvoices] = useState([]);
+
+  useEffect(() => {
+    if (!isOpen || !customer) return undefined;
+    let alive = true;
+    crmApi
+      .listInvoices({ customerId: customer.id, limit: 100 })
+      .then((rows) => alive && setCustomerInvoices(rows))
+      .catch(() => alive && setCustomerInvoices([]));
+    return () => {
+      alive = false;
+    };
+  }, [isOpen, customer?.id]);
 
   if (!isOpen || !customer) return null;
-
-  const customerInvoices = invoices.filter(i => i.customerId === customer.id);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md overflow-y-auto animate-in fade-in">

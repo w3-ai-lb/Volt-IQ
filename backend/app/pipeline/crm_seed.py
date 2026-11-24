@@ -26,7 +26,11 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.core.security import hash_password
 from app.database import SessionLocal, create_all_tables
+from app.core.billing_link import link_invoice, mirror_crm_payment, month_label
+from app.models.bill import Bill
 from app.models.customer import Customer
+from app.models.payment import Payment
+from app.models.user import User
 from app.models.employee import ACCOUNT_ROLE_FOR, Employee, EmployeeAssignment
 from app.models.invoice import Invoice, InvoicePayment
 from app.models.network import Zone
@@ -77,23 +81,23 @@ def seed_crm(db: Session) -> bool:
     # Staff and their sign-in accounts.
     employees: list[Employee] = []
     for emp_id, name, email, password, role, zone in STAFF:
-        account = db.query(Customer).filter(Customer.email == email).first()
+        # Stage 2: staff sign in from `users`, not `customers`.
+        account = db.query(User).filter(User.email == email).first()
         if account is None:
-            account = Customer(
-                customer_id=f"STF-{emp_id[-4:]}",
+            account = User(
+                user_id=f"STF-{emp_id[-4:]}",
                 name=name,
                 email=email,
                 password_hash=hash_password(password),
                 role=ACCOUNT_ROLE_FOR[role],
                 region=zone,
-                plan="Staff",
                 status="Active",
             )
             db.add(account)
             db.flush()
         emp = Employee(
             employee_id=emp_id, full_name=name, email=email, role=role,
-            department="Operations", zone_name=zone, is_active=True, account_id=account.customer_id,
+            department="Operations", zone_name=zone, is_active=True, account_id=account.user_id,
             phone=f"+961 3 {rng.randint(100, 999)} {rng.randint(100, 999)}",
         )
         db.add(emp)
@@ -132,27 +136,62 @@ def seed_crm(db: Session) -> bool:
             units = round(rng.uniform(180, 420) * scale, 1)
             current = previous + units
             rd_id = f"RD-{i:04d}-{back}"
+            rate = settings.TARIFF_LBP_PER_KWH
+            fixed = settings.FIXED_CHARGE_PER_INVOICE
+            inv_id = f"INV-{i:04d}-{back}"
+            reader = match[i % len(match)].employee_id if match else None
+
+            # Stage 2 (linked billing): if the portal already has this
+            # customer's bill for the month, the CRM invoice IS that bill
+            # (same amount), and its payments are the bill's payments.
+            bill = (
+                db.query(Bill)
+                .filter(Bill.customer_id == cust.customer_id, Bill.month == month_label(period),
+                        Bill.invoice_id.is_(None))
+                .first()
+            )
+            if bill is not None:
+                # Exactly the bill's amount: rounding it would leave a paid bill
+                # a fraction of a pound short, and the CRM would call it Partial.
+                total = float(bill.amount)
+                units = round(max(1.0, (total - fixed) / rate), 1)
+                current = previous + units
+            else:
+                total = round(fixed + units * rate, 0)
+
             db.add(MeterReading(reading_id=rd_id, meter_id=meter_id, subscription_id=sbn_id, billing_period=period,
                                 reading_value=current, capture_method="ocr",
                                 ocr_confidence=round(rng.uniform(0.86, 0.99), 2),
                                 subscription_status="active", reading_date=read_on))
-            rate = settings.TARIFF_LBP_PER_KWH
-            fixed = settings.FIXED_CHARGE_PER_INVOICE
-            total = round(fixed + units * rate, 0)
-            inv_id = f"INV-{i:04d}-{back}"
-            reader = match[i % len(match)].employee_id if match else None
-            db.add(Invoice(invoice_id=inv_id, subscription_id=sbn_id, subscriber_id=sub_id,
-                           zone_id=zone.zone_id if zone else None, billing_period=period, units_consumed=units,
-                           rate_applied=rate, fixed_charge=fixed, variable_charge=total - fixed,
-                           total_amount=total, currency=settings.CURRENCY, previous_reading=previous,
-                           current_reading=current, reading_id=rd_id, issued_by=reader))
-            # Older months are mostly paid; the latest month is often still open.
-            if back > 1 or rng.random() < 0.35:
-                db.add(InvoicePayment(payment_id=f"PAY-{i:04d}-{back}", invoice_id=inv_id, subscriber_id=sub_id,
-                                      amount=total, currency=settings.CURRENCY,
-                                      payment_method=rng.choice(["cash", "omt", "whish"]),
-                                      payment_date=read_on + timedelta(days=rng.randint(2, 12)),
-                                      collected_by=reader, receipt_no=f"RCP-{i:04d}-{back}"))
+            invoice = Invoice(invoice_id=inv_id, subscription_id=sbn_id, subscriber_id=sub_id,
+                              zone_id=zone.zone_id if zone else None, billing_period=period, units_consumed=units,
+                              rate_applied=rate, fixed_charge=fixed, variable_charge=total - fixed,
+                              total_amount=total, currency=settings.CURRENCY, previous_reading=previous,
+                              current_reading=current, reading_id=rd_id, issued_by=reader)
+            db.add(invoice)
+            db.flush()
+
+            if bill is not None:
+                bill.invoice_id = inv_id
+                for n, pay in enumerate(db.query(Payment).filter(Payment.bill_id == bill.bill_id), start=1):
+                    ip_id = f"PAY-{i:04d}-{back}-{n}"
+                    db.add(InvoicePayment(payment_id=ip_id, invoice_id=inv_id, subscriber_id=sub_id,
+                                          amount=pay.amount, currency=settings.CURRENCY, payment_method=pay.method,
+                                          payment_date=pay.date, collected_by=reader,
+                                          receipt_no=f"RCP-{i:04d}-{back}"))
+                    pay.invoice_payment_id = ip_id
+            else:
+                link_invoice(db, invoice, read_on)
+                # Older months are mostly paid; the latest month is often still open.
+                if back > 1 or rng.random() < 0.35:
+                    ip = InvoicePayment(payment_id=f"PAY-{i:04d}-{back}", invoice_id=inv_id, subscriber_id=sub_id,
+                                        amount=total, currency=settings.CURRENCY,
+                                        payment_method=rng.choice(["cash", "omt", "whish"]),
+                                        payment_date=read_on + timedelta(days=rng.randint(2, 12)),
+                                        collected_by=reader, receipt_no=f"RCP-{i:04d}-{back}")
+                    db.add(ip)
+                    db.flush()
+                    mirror_crm_payment(db, ip)
             previous = current
         created += 1
 

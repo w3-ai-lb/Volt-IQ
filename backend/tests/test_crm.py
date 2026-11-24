@@ -35,12 +35,20 @@ PASSWORD = "test-pass-1234"
 def client() -> TestClient:
     create_all_tables()
     with SessionLocal() as db:
+        # The admin is created the OLD way (a login in `customers`), as a
+        # database from before Stage 2 would have it. The start-up move below
+        # must carry it over to `users`.
         db.add(Customer(customer_id="ADM-T", name="Test Admin", email="admin@example.com",
                         password_hash=hash_password(PASSWORD), role="admin", status="Active"))
         db.add(Customer(customer_id="CUS-T", name="Test Customer", email="cust@example.com",
                         password_hash=hash_password(PASSWORD), role="customer", region="Beirut",
                         status="Active"))
         db.commit()
+    from app.core.accounts import move_staff_to_users
+    from app.database import engine
+
+    assert move_staff_to_users(engine) == 1
+    with SessionLocal() as db:
         seed_crm(db)
     return TestClient(app)
 
@@ -132,3 +140,109 @@ def test_tariff_update_applies_to_new_invoices(client):
                       json={"customerId": cust["id"], "currentReading": cust["currentReading"] + 10}).json()
     assert inv["rateApplied"] == 40000
     assert inv["totalAmount"] == 400000
+
+
+# --- Stage 2 ----------------------------------------------------------------------
+def test_stage2_users_table_holds_staff(client):
+    from app.models.user import User
+
+    with SessionLocal() as db:
+        # The legacy admin was moved, and the demo staff were created in `users`.
+        assert db.get(User, "ADM-T") is not None
+        assert db.get(Customer, "ADM-T") is None
+        assert db.query(Customer).filter(Customer.role != "customer").count() == 0
+        assert db.query(User).count() >= 4
+
+    h = _login(client, "admin@example.com")          # signs in from `users`
+    assert client.get("/auth/me", headers=h).json()["role"] == "admin"
+    assert client.get("/dashboard/admin", headers=h).status_code == 200
+
+    r = client.post("/crm/employees", headers=h, json={
+        "name": "Stage Two", "email": "s2@example.com", "password": "stage-two-pass", "role": "MANAGER"})
+    assert r.status_code == 201, r.text
+    with SessionLocal() as db:
+        assert db.query(User).filter(User.email == "s2@example.com").count() == 1
+        assert db.query(Customer).filter(Customer.email == "s2@example.com").count() == 0
+
+    # One email, one account, across both tables.
+    clash = client.post("/crm/employees", headers=h, json={
+        "name": "Dup", "email": "cust@example.com", "password": "another-pass-1", "role": "MANAGER"})
+    assert clash.status_code == 409
+
+    # Staff cannot write customer-only records.
+    assert client.post("/chat/message", headers=h, json={"message": "hi"}).status_code == 403
+
+
+def test_stage2_reading_appears_in_customer_portal(client):
+    staff = _login(client, "field@voltiq.demo", "field1234")
+    cust = _login(client, "cust@example.com")
+    sub = client.get("/crm/customers?mine=true", headers=staff).json()[0]
+    before = {b["id"] for b in client.get("/bills", headers=cust).json()}
+
+    inv = client.post("/crm/readings", headers=staff,
+                      json={"customerId": sub["id"], "currentReading": sub["currentReading"] + 50}).json()
+    bills = client.get("/bills", headers=cust).json()
+    new = [b for b in bills if b["id"] not in before]
+    assert len(new) == 1 and round(new[0]["amount"]) == round(inv["totalAmount"])
+
+    # The office records cash: the customer sees the payment and a paid bill.
+    pay = client.post("/crm/payments", headers=staff,
+                      json={"customerId": sub["id"], "invoiceId": inv["id"], "amount": inv["totalAmount"]})
+    assert pay.status_code == 201, pay.text
+    bill = next(b for b in client.get("/bills", headers=cust).json() if b["id"] == new[0]["id"])
+    assert bill["status"] == "Paid"
+    assert any(round(p["amount"]) == round(inv["totalAmount"]) for p in client.get("/payments", headers=cust).json())
+
+
+def test_stage2_portal_payment_settles_crm_invoice(client):
+    staff = _login(client, "office@voltiq.demo", "office1234")
+    cust = _login(client, "cust@example.com")
+    sub = client.get("/crm/customers", headers=staff).json()[0]
+    inv = client.post("/crm/readings", headers=staff,
+                      json={"customerId": sub["id"], "currentReading": sub["currentReading"] + 20}).json()
+    bill = next(b for b in client.get("/bills", headers=cust).json() if b["id"] == f"BILL-{inv['id']}")
+
+    r = client.post(f"/bills/{bill['id']}/pay", headers=cust, json={"method": "OMT"})
+    assert r.status_code == 201, r.text
+    crm_inv = next(i for i in client.get(f"/crm/invoices?customerId={sub['id']}", headers=staff).json()
+                   if i["id"] == inv["id"])
+    assert crm_inv["status"] == "Paid"
+    portal_pay = next(p for p in client.get("/crm/payments", headers=staff).json() if p["invoiceId"] == inv["id"])
+    assert portal_pay["recordedBy"] == "Customer portal"
+
+
+def test_stage2_lists_use_a_fixed_number_of_queries(client):
+    """The customer list must not run one query per customer (Stage 1 did)."""
+    from sqlalchemy import event
+
+    from app.database import engine
+
+    h = _login(client, "office@voltiq.demo", "office1234")
+    for n in range(12):
+        client.post("/crm/customers", headers=h, json={"name": f"Bulk {n}", "zone": "Beirut", "initialReading": 1})
+
+    counted = []
+
+    def count(*_):
+        counted.append(1)
+
+    def queries(url):
+        counted.clear()
+        event.listen(engine, "before_cursor_execute", count)
+        try:
+            assert client.get(url, headers=h).status_code == 200
+        finally:
+            event.remove(engine, "before_cursor_execute", count)
+        return len(counted)
+
+    small = queries("/crm/customers/page?limit=2")
+    large = queries("/crm/customers/page?limit=200")
+    # Same bound for 2 rows or 200 (one optional query, employee names, runs
+    # only when the page has assigned customers). Stage 1 needed 1 query per row.
+    assert large <= small + 1 and large <= 15, (small, large)
+
+    page = client.get("/crm/customers/page?search=bulk 1&limit=5", headers=h).json()
+    assert page["total"] == 3 and all("Bulk 1" in c["name"] for c in page["items"])  # Bulk 1, 10, 11
+    summary = client.get("/crm/summary", headers=h).json()
+    assert summary["totalCustomers"] >= 13 and "unpaidInvoices" in summary
+    assert len(client.get("/crm/customers/options", headers=h).json()) == summary["totalCustomers"]

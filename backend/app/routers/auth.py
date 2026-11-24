@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.core import rate_limit, registration_codes
+from app.core.accounts import email_in_use, find_login
 from app.core.deps import get_current_user
 from app.core.security import (
     create_access_token,
@@ -67,6 +68,7 @@ def _token_for(customer: Customer) -> str:
         subject=customer.customer_id,
         role=customer.role,
         session_version=customer.session_version or 0,
+        kind=getattr(customer, "kind", "customer"),
     )
 
 
@@ -96,7 +98,8 @@ def login(payload: LoginRequest, request: Request, db: Session = Depends(get_db)
     limits = ((rate_limit.LOGIN_PER_ACCOUNT, (client, email)), (rate_limit.LOGIN_PER_CLIENT, client))
     rate_limit.guard(*limits)
 
-    customer = db.query(Customer).filter(func.lower(Customer.email) == email).first()
+    # Staff accounts (users) first, then customers: see app/core/accounts.py.
+    customer = find_login(db, email)
 
     # Same error for unknown email and wrong password: avoids leaking
     # which accounts exist.
@@ -168,12 +171,7 @@ def register(payload: RegisterRequest, request: Request, db: Session = Depends(g
     # The email must be free, ignoring this same record's placeholder address.
     # Checked only after the code, so it cannot be used to probe which
     # addresses are registered.
-    clash = (
-        db.query(Customer)
-        .filter(func.lower(Customer.email) == email, Customer.customer_id != customer_id)
-        .first()
-    )
-    if clash is not None:
+    if email_in_use(db, email, exclude_id=customer_id):
         rate_limit.record(*limits)
         logger.info("Registration refused for Customer ID %s (email in use)", customer_id)
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=REGISTRATION_REFUSED)

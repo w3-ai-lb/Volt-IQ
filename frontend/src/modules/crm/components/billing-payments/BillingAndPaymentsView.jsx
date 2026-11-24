@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 
 export default function BillingAndPaymentsView({ initialTab = 'invoices' }) {
-  const { invoices, payments } = useData();
+  const { invoices, payments, summary } = useData();
   const { hasPermission } = useAuth();
 
   const [activeSubTab, setActiveSubTab] = useState(initialTab);
@@ -91,7 +91,7 @@ export default function BillingAndPaymentsView({ initialTab = 'invoices' }) {
               : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
           }`}
         >
-          <FileText className="w-4 h-4" /> Invoices Ledger ({invoices.length})
+          <FileText className="w-4 h-4" /> Invoices Ledger ({summary?.invoiceCount ?? invoices.length}, latest {invoices.length} shown)
         </button>
 
         <button
@@ -102,7 +102,7 @@ export default function BillingAndPaymentsView({ initialTab = 'invoices' }) {
               : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
           }`}
         >
-          <CreditCard className="w-4 h-4" /> Payment Logs & Receipts ({payments.length})
+          <CreditCard className="w-4 h-4" /> Payment Logs & Receipts ({summary?.paymentCount ?? payments.length}, latest {payments.length} shown)
         </button>
       </div>
 

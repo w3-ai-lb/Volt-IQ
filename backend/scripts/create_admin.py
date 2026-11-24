@@ -31,11 +31,11 @@ import argparse
 import getpass
 import sys
 
-from sqlalchemy import func
 
 from app.core.security import hash_password
 from app.database import SessionLocal, create_all_tables
-from app.models.customer import Customer
+from app.core.accounts import find_login
+from app.models.user import User
 
 MIN_PASSWORD = 6
 
@@ -44,7 +44,7 @@ def _next_admin_id(db) -> str:
     """ADMIN-001, ADMIN-002, ... so a second administrator does not collide."""
     taken = {
         row[0]
-        for row in db.query(Customer.customer_id).filter(Customer.customer_id.like("ADMIN-%")).all()
+        for row in db.query(User.user_id).filter(User.user_id.like("ADMIN-%")).all()
     }
     n = 1
     while f"ADMIN-{n:03d}" in taken:
@@ -79,7 +79,8 @@ def main() -> int:
     create_all_tables()
     db = SessionLocal()
     try:
-        existing = db.query(Customer).filter(func.lower(Customer.email) == email).first()
+        # Stage 2: administrators live in `users`; a customer with this email is refused below.
+        existing = find_login(db, email)
 
         if existing is not None:
             # Promoting an existing customer account to administrator would
@@ -101,14 +102,13 @@ def main() -> int:
             print(f"Password reset for the existing administrator {existing.customer_id} ({email}).")
             return 0
 
-        admin = Customer(
-            customer_id=_next_admin_id(db),
+        admin = User(
+            user_id=_next_admin_id(db),
             name=args.name or email.split("@")[0],
             email=email,
             password_hash=hash_password(password),
             role="admin",
             region=args.region,
-            plan="Commercial",
             status="Active",
         )
         db.add(admin)

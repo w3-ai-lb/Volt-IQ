@@ -10,17 +10,17 @@ subscribers they serve, so one backend answers every app.
 
 HOW AN EMPLOYEE SIGNS IN
 ------------------------
-`customers` is the platform's sign-in table (see Customer). An employee who
-may sign in gets a row there too, linked through `account_id`, with the role
-that matches their job:
+Customers sign in with their own customer record. Since Stage 2 an
+employee who may sign in has a row in `users` (app/models/user.py), linked
+through `account_id`, with the role that matches their job:
 
-    employee.role      ->  customers.role
+    employee.role      ->  users.role
     admin              ->  admin
     office_staff       ->  staff
     field_employee     ->  field
 
-Every analytics query filters on `role == "customer"`, so staff accounts never
-appear in customer counts, segments or forecasts.
+Staff accounts are not in `customers` at all, so they can never appear in
+customer counts, segments or forecasts.
 """
 
 from datetime import UTC, datetime
@@ -59,7 +59,7 @@ class Employee(Base):
 
     # The sign-in account, when this employee may sign in.
     account_id: Mapped[str | None] = mapped_column(
-        String(20), ForeignKey("customers.customer_id", ondelete="SET NULL"), unique=True
+        String(20), ForeignKey("users.user_id", ondelete="SET NULL"), unique=True
     )
 
     created_at: Mapped[datetime] = mapped_column(

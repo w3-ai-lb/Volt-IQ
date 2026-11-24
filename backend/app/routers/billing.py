@@ -10,6 +10,8 @@ from sqlalchemy.orm import Session
 
 from app.ai import alerts as alert_engine
 from app.ai import recommender
+from app.core.accounts import email_in_use
+from app.core.billing_link import mirror_portal_payment
 from app.core.deps import get_current_user
 from app.core.i18n import localize, request_language
 from app.database import get_db
@@ -296,6 +298,9 @@ def pay_bill(
 
     if settled:
         bill.status = "Paid"
+
+    # Stage 2 (linked billing): a bill issued by the CRM is settled there too.
+    mirror_portal_payment(db, payment, bill)
 
     db.commit()
     db.refresh(payment)
@@ -591,15 +596,8 @@ def update_profile(
     # Email is the login identity, so it has to stay unique.
     if changes.get("email"):
         new_email = str(changes["email"]).lower().strip()
-        clash = (
-            db.query(Customer)
-            .filter(
-                func.lower(Customer.email) == new_email,
-                Customer.customer_id != current_user.customer_id,
-            )
-            .first()
-        )
-        if clash is not None:
+        # Staff (users) and customers share one pool of sign-in emails.
+        if email_in_use(db, new_email, exclude_id=current_user.customer_id):
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail="Another account already uses this email address",

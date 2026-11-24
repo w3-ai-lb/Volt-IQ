@@ -185,3 +185,39 @@ class TariffOut(CamelModel):
 
 class TariffUpdate(CamelModel):
     rate_per_kwh: float = Field(gt=0)
+
+
+# --- Stage 2: paging and light lists -------------------------------------------
+class CrmCustomerPage(CamelModel):
+    items: list[CrmCustomerOut]
+    total: int
+    offset: int
+    limit: int
+
+
+class CrmCustomerOption(CamelModel):
+    """The small row used by pickers (payment, assignment): no readings, no meters."""
+
+    id: str
+    account_no: str
+    name: str
+    tariff_type: str = "Residential"
+    status: str = "Active"
+    assigned_employee_id: str | None = None
+    balance: float = 0.0
+
+
+class CrmSummary(CamelModel):
+    total_customers: int
+    active_customers: int
+    residential_customers: int
+    commercial_customers: int
+    total_employees: int
+    total_billed: float
+    total_collected: float
+    outstanding: float
+    kwh_billed: float
+    invoice_count: int
+    unpaid_invoices: int
+    payment_count: int
+    currency: str

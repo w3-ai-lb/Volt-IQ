@@ -46,6 +46,12 @@ def create_all_tables() -> None:
     Base.metadata.create_all(bind=engine)
     _add_missing_columns()
 
+    # Stage 2 (users): staff logins live in `users`, not `customers`.
+    from app.core.accounts import move_staff_to_users, repoint_employee_accounts
+
+    repoint_employee_accounts(engine)
+    move_staff_to_users(engine)
+
 
 def add_missing_columns() -> None:
     """
@@ -84,6 +90,9 @@ _LATER_COLUMNS: dict[str, dict[str, str]] = {
         "site_name": "VARCHAR(80)",
         "controller_model": "VARCHAR(60)",
     },
+    # Stage 2 (linked billing): portal bills/payments point at their CRM twin.
+    "bills": {"invoice_id": "VARCHAR(20)"},
+    "payments": {"invoice_payment_id": "VARCHAR(20)"},
     # Columns the unified CRM added to the ishtirak money tables.
     "invoices": {
         "previous_reading": "FLOAT",

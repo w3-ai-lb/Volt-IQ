@@ -12,7 +12,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.ai import chatbot
-from app.core.deps import get_current_user
+from app.core.deps import get_current_user, require_customer
 from app.database import get_db
 from app.models.chat import ChatConversation, ChatMessage
 from app.models.customer import Customer
@@ -140,7 +140,7 @@ def get_conversation(
 def delete_conversation(
     conversation_id: str,
     db: Session = Depends(get_db),
-    current_user: Customer = Depends(get_current_user),
+    current_user: Customer = Depends(require_customer),
 ):
     """Remove a conversation and its messages. Backs the bin icon in the sidebar."""
     conversation = _conversation_or_404(db, conversation_id, current_user.customer_id)
@@ -153,7 +153,7 @@ def delete_conversation(
 def send_message(
     payload: ChatMessageRequest,
     db: Session = Depends(get_db),
-    current_user: Customer = Depends(get_current_user),
+    current_user: Customer = Depends(require_customer),
 ):
     """Answer a customer question and persist both sides of the exchange."""
     conversation: ChatConversation | None = None

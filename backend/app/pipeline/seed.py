@@ -544,15 +544,17 @@ def seed(db: Session) -> None:
     now = datetime.now(UTC)
 
     # --- Accounts -------------------------------------------------------
+    # Stage 2: the administrator is staff, so the login lives in `users`.
+    from app.models.user import User
+
     db.add(
-        Customer(
-            customer_id=ADMIN["customer_id"],
+        User(
+            user_id=ADMIN["customer_id"],
             name=ADMIN["name"],
             email=ADMIN["email"],
             password_hash=hash_password(ADMIN["password"]),
             role="admin",
             region=ADMIN["region"],
-            plan="Commercial",
             status="Active",
             phone="+961 1 360 940",
             address="NXTTRN, Charles Helou Ave, Beirut",

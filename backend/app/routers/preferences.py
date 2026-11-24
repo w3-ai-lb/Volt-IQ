@@ -29,7 +29,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
-from app.core.deps import get_current_user
+from app.core.deps import get_current_user, require_customer
 from app.database import get_db
 from app.models.customer import Customer
 from app.models.notification_preference import DEFAULTS, NotificationPreference
@@ -93,7 +93,7 @@ def get_notification_preferences(
 def update_notification_preferences(
     payload: NotificationPreferencesUpdate,
     db: Session = Depends(get_db),
-    current_user: Customer = Depends(get_current_user),
+    current_user: Customer = Depends(require_customer),
 ):
     """
     Store the customer's choices and re-run the alert engine straight away.
